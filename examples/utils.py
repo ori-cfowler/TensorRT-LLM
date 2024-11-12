@@ -111,59 +111,12 @@ def load_tokenizer(tokenizer_dir: Optional[str] = None,
                    model_name: str = 'GPTForCausalLM',
                    model_version: Optional[str] = None,
                    tokenizer_type: Optional[str] = None):
-    if vocab_file is None:
-        if 'whisper' in model_name.lower():
-            tokenizer = AutoTokenizer.from_pretrained('openai/whisper-large-v3',
-                                                      language='english',
-                                                      task='transcribe',
-                                                      predict_timestamps=False)
-        else:
-            use_fast = True
-            if tokenizer_type is not None and tokenizer_type == "llama":
-                use_fast = False
-            # Should set both padding_side and truncation_side to be 'left'
-            tokenizer = AutoTokenizer.from_pretrained(
-                tokenizer_dir,
-                legacy=False,
-                padding_side='left',
-                truncation_side='left',
-                trust_remote_code=True,
-                tokenizer_type=tokenizer_type,
-                use_fast=use_fast)
-    elif model_name == 'GemmaForCausalLM' or model_name == 'RecurrentGemmaForCausalLM':
-        from transformers import GemmaTokenizer
-
-        # Initialize tokenizer from vocab file.
-        tokenizer = GemmaTokenizer(vocab_file=vocab_file,
-                                   padding_side='left',
-                                   truncation_side='left',
-                                   legacy=False)
-    elif model_name == 'Grok1ModelForCausalLM':
-        tokenizer = LlamaTokenizer(vocab_file=vocab_file,
-                                   padding_side='left',
-                                   truncation_side='left',
-                                   legacy=False,
-                                   use_fast=False)
-    else:
-        # For gpt-next, directly load from tokenizer.model
-        tokenizer = T5Tokenizer(vocab_file=vocab_file,
-                                padding_side='left',
-                                truncation_side='left',
-                                legacy=False)
-    if 'qwen' in model_name.lower() and model_version == 'qwen':
-        with open(Path(tokenizer_dir) / "generation_config.json") as f:
-            gen_config = json.load(f)
-        pad_id = gen_config['pad_token_id']
-        end_id = gen_config['eos_token_id']
-    elif 'GLM' in model_name and model_version == 'glm':
-        pad_id = tokenizer.pad_token_id
-        end_id = tokenizer.eop_token_id
-    else:
-        if tokenizer.pad_token_id is None:
-            tokenizer.pad_token_id = tokenizer.eos_token_id
-        pad_id = tokenizer.pad_token_id
-        end_id = tokenizer.eos_token_id
-
+    model = "meta-llama/Llama-3.1-8B-Instruct"
+    tokenizer = AutoTokenizer.from_pretrained(model, token=os.environ.get("HF_ACCESS_TOKEN"))
+    tokenizer.add_special_tokens({'pad_token': '<|reserved_special_token_0|>'})
+    tokenizer.pad_token_id = 128002
+    pad_id = tokenizer.pad_token_id
+    end_id = tokenizer.eos_token_id
     return tokenizer, pad_id, end_id
 
 
@@ -356,26 +309,11 @@ def add_common_args(parser):
         "   E.g.: [4, [0], [1], False] for [draft_len, draft_model_device_list, target_model_device_list, use_logits]."
     )
     parser.add_argument(
-        '--prompt_lookup_config',
-        type=str,
-        default=None,
-        help=
-        "Configuration of Prompt-Lookup decoding, see `examples/prompt_lookup/README.md` for more information."
-        "   E.g.: [10,2,[0]] for [prompt_lookup_num_tokens, max_matching_ngram_size, device_list].",
-    )
-    parser.add_argument(
         '--medusa_choices',
         type=str,
         default=None,
         help="Configuration of Medusa decoding."
         "   E.g.: [[0, 0, 0, 0], [0, 1, 0], [1, 0], [1, 1]] for 9 medusa tokens."
-    )
-    parser.add_argument(
-        '--eagle_choices',
-        type=str,
-        default=None,
-        help="Configuration of Eagle-1 decoding."
-        "   E.g.: [[0, 0, 0, 0], [0, 1, 0], [1, 0], [1, 1]] for 9 draft tokens."
     )
     parser.add_argument(
         '--lookahead_config',
